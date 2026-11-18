@@ -71,8 +71,16 @@ window.addEventListener("load", async () => {
 
   $("#loginStatus").textContent = "로그인 확인 중...";
 
-  await Drive.loadGapiClient();
-  await waitForGoogleIdentity();
+  try {
+    await Drive.loadGapiClient();
+    await waitForGoogleIdentity();
+  } catch (e) {
+    console.error(e);
+    $("#loginStatus").textContent =
+      "로그인 준비 중 오류가 났어요: " + e.message +
+      " (현재 주소 " + location.origin + " 가 Google Cloud의 API 키·OAuth 허용 주소에 등록돼 있는지 확인해주세요.)";
+    return;
+  }
 
   Drive.initTokenClient(async (user, err) => {
     if (err || !user) {
@@ -109,9 +117,12 @@ window.addEventListener("load", async () => {
 });
 
 function waitForGoogleIdentity() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
     const check = () => {
       if (window.google && google.accounts && google.accounts.oauth2) resolve();
+      else if (Date.now() - started > 20000)
+        reject(new Error("구글 로그인 스크립트(accounts.google.com)를 불러오지 못했어요."));
       else setTimeout(check, 100);
     };
     check();

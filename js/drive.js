@@ -12,15 +12,34 @@ const Drive = (() => {
   const fileIdCache = {}; // { "notices.json": "driveFileId" }
 
   function loadGapiClient() {
-    return new Promise((resolve) => {
-      gapi.load("client:picker", async () => {
-        await gapi.client.init({
-          apiKey: CONFIG.API_KEY,
-          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-        });
-        gapiReady = true;
-        pickerReady = true;
-        resolve();
+    return new Promise((resolve, reject) => {
+      if (!window.gapi) {
+        reject(new Error("구글 API 스크립트(apis.google.com)를 불러오지 못했어요. 광고 차단/네트워크를 확인해주세요."));
+        return;
+      }
+      const timer = setTimeout(() => reject(new Error("구글 API 초기화가 20초 넘게 응답이 없어요.")), 20000);
+      gapi.load("client:picker", {
+        callback: async () => {
+          try {
+            await gapi.client.init({
+              apiKey: CONFIG.API_KEY,
+              discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+            });
+            gapiReady = true;
+            pickerReady = true;
+            clearTimeout(timer);
+            resolve();
+          } catch (e) {
+            clearTimeout(timer);
+            // gapi.client.init 실패는 대개 API 키의 "HTTP 리퍼러 제한"에 현재 주소가 없을 때 생겨요.
+            const detail = (e && (e.details || (e.result && e.result.error && e.result.error.message) || e.message)) || JSON.stringify(e);
+            reject(new Error("구글 API 초기화 실패: " + detail));
+          }
+        },
+        onerror: () => {
+          clearTimeout(timer);
+          reject(new Error("구글 API 모듈(client:picker)을 불러오지 못했어요."));
+        },
       });
     });
   }
